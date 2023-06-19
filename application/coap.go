@@ -25,13 +25,13 @@ func coapServer() error {
 		}
 	})
 
-	err := coap.ListenAndServe("udp", addr, r)
+	err := coap.ListenAndServe("udp", ":5683", r)
 
 	return err
 }
 
 func coapClientMain() error {
-	co, err := udp.Dial(addr)
+	co, err := udp.Dial("localhost:5683")
 	if err != nil {
 		return err
 	}
