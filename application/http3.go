@@ -1,12 +1,17 @@
 package application
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -26,36 +31,40 @@ func init() {
 func GenHTTP3() {
 	mux := newRouter()
 
-	var err error
-	certs := make([]tls.Certificate, 1)
-	certs[0], err = tls.LoadX509KeyPair("./assets/cert.pem", "./assets/priv.key")
-	if err != nil {
-		panic(err)
-	}
-
 	srv := &http3.Server{
-		Addr:    ":4242",
-		Handler: mux,
+		Addr:      ":4242",
+		Handler:   mux,
+		TLSConfig: generateTLSConfig(),
 	}
 
 	go func() {
-		if err := srv.ListenAndServeTLS("./assets/cert.pem", "./assets/priv.key"); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("listen: %s\n", err)
+
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Listen: %s\n", err)
 		}
 	}()
 
 	time.Sleep(time.Second)
 
-	http3ClientMain()
+	err := http3ClientMain()
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 }
 
-func http3ClientMain() {
+func http3ClientMain() error {
+	keyLog, err := os.Create("http3_key.log")
+	if err != nil {
+		return err
+	}
+	defer keyLog.Close()
+
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			RootCAs:            pool,
 			InsecureSkipVerify: true,
-			// KeyLogWriter:       keyLog,
+			KeyLogWriter:       keyLog,
 		},
 		QuicConfig: &quic.Config{},
 	}
@@ -67,14 +76,39 @@ func http3ClientMain() {
 	for i := 0; i < 5; i++ {
 		resp, err := hclient.Get("https://" + addr)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		buf, err := io.ReadAll(resp.Body)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		fmt.Println("buf:", string(buf))
+	}
+
+	return nil
+}
+
+func generateTLSConfig() *tls.Config {
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		panic(err)
+	}
+	template := x509.Certificate{SerialNumber: big.NewInt(1)}
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+
+	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		panic(err)
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+		NextProtos:   []string{"quic-echo-example"},
 	}
 }

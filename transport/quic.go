@@ -11,11 +11,10 @@ import (
 	"io"
 	"log"
 	"math/big"
+	"os"
 
 	"github.com/quic-go/quic-go"
 )
-
-
 
 // Start a server that echos all data on the first stream opened by the client
 func echoQUICServer() error {
@@ -41,9 +40,16 @@ func echoQUICServer() error {
 }
 
 func quicClientMain() error {
+	keyLog, err := os.Create("quic_key.log")
+	if err != nil {
+		return err
+	}
+	defer keyLog.Close()
+
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: true,
 		NextProtos:         []string{"quic-echo-example"},
+		KeyLogWriter:       keyLog,
 	}
 	conn, err := quic.DialAddr(context.Background(), addr, tlsConf, nil)
 	if err != nil {
@@ -97,7 +103,12 @@ func generateTLSConfig() *tls.Config {
 }
 
 func GenQUIC() {
-	go func() { log.Fatal(echoQUICServer()) }()
+	go func() {
+		err := echoQUICServer()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
 
 	err := quicClientMain()
 	if err != nil {
