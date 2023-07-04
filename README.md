@@ -3,7 +3,19 @@
 # Pre-required software
 - Wireshark
 - `gentc` application
-    - Please download on [release page](https://github.com/iot-standards-laboratory/pcapsample/releases)
+    - If you are using windows platform, you can download the application on [release page](https://github.com/iot-standards-laboratory/pcapsample/releases)
+    - If you are using mac or linux, please refer to the "How to build `gentc`" section
+
+# How to build `gentc`
+- Visit the [Download and install - The Go Programming Language](https://go.dev/doc/install) to download `go installer`
+- Download the installer and execute it to install `go`
+- Download and build the source code for `gentc`
+    ```bash
+    git clone https://github.com/iot-standards-laboratory/pcapsample.git
+    cd pcapsample
+    go mod tidy
+    go build -o gentc main.go
+    ```
 
 # How to use
 - Execute wireshark
